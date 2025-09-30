@@ -4,38 +4,36 @@ import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 
 dotenv.config();
-
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
 
-//
+// Temporary OTP store (in-memory, for demo; use Redis for production)
+const otpStore = {};
+
 // ============================
-// 🚀 SIGNUP + SEND OTP
+// 🚀 SIGNUP + SEND OTP (do NOT save student yet)
 // ============================
 export const signupAndSendOtp = async (req, res) => {
   try {
     const { name, mobile, email, course } = req.body;
 
-    // ✅ Check if student already exists
+    // Check if student already exists
     const existingStudent = await Student.findOne({ mobile });
     if (existingStudent) {
-      // Student exists → just return a message, no OTP
       return res.status(200).json({
         success: false,
         message: "⚠️ Student already exists. Please login!",
-        alreadyExists: true, // optional flag for frontend
+        alreadyExists: true,
       });
     }
 
-    // ✅ Create new student
-    const student = new Student({ name, mobile, email, course });
-
-    // ✅ Generate OTP
+    // Generate OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    student.otp = otp;
-    student.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
-    await student.save();
+    const expires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // ✅ Send OTP via Twilio
+    // Save OTP temporarily
+    otpStore[mobile] = { name, mobile, email, course, otp, expires };
+
+    // Send OTP via Twilio
     await client.messages.create({
       body: `Your OTP for Student Signup is: ${otp}`,
       from: process.env.TWILIO_PHONE,
@@ -44,7 +42,7 @@ export const signupAndSendOtp = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Student registered successfully! OTP sent.",
+      message: "OTP sent! Complete verification to submit form.",
       alreadyExists: false,
     });
   } catch (error) {
@@ -53,8 +51,6 @@ export const signupAndSendOtp = async (req, res) => {
   }
 };
 
-
-//
 // ============================
 // 🚀 LOGIN + SEND OTP
 // ============================
@@ -62,8 +58,7 @@ export const loginAndSendOtp = async (req, res) => {
   try {
     const { mobile } = req.body;
 
-    // Check if student exists
-    let student = await Student.findOne({ mobile });
+    const student = await Student.findOne({ mobile });
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -73,11 +68,10 @@ export const loginAndSendOtp = async (req, res) => {
 
     // Generate OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    student.otp = otp;
-    student.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
-    await student.save();
+    const expires = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Send OTP via SMS
+    otpStore[mobile] = { otp, expires, isLogin: true };
+
     await client.messages.create({
       body: `Your OTP for Student Login is: ${otp}`,
       from: process.env.TWILIO_PHONE,
@@ -86,31 +80,40 @@ export const loginAndSendOtp = async (req, res) => {
 
     res.json({ success: true, message: "OTP sent successfully!" });
   } catch (error) {
-    console.error("Login Error:", error);
+    console.error("Login OTP Error:", error);
     res.status(500).json({ success: false, message: "Error sending OTP" });
   }
 };
 
-//
 // ============================
-// 🚀 VERIFY OTP (for both signup/login)
+// 🚀 VERIFY OTP & SAVE STUDENT (signup) OR LOGIN
 // ============================
 export const verifyOtp = async (req, res) => {
   try {
     const { mobile, enteredOtp } = req.body;
+    const tempData = otpStore[mobile];
 
-    const student = await Student.findOne({ mobile });
-    if (!student) {
-      return res.status(404).json({ success: false, message: "Student not found. Please sign up!" });
+    if (!tempData) {
+      return res.status(400).json({ success: false, message: "OTP not requested or expired" });
     }
 
-    if (student.otp !== enteredOtp || student.otpExpires < new Date()) {
+    if (tempData.otp !== enteredOtp || tempData.expires < new Date()) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }
 
-    student.otp = null;
-    student.otpExpires = null;
-    await student.save();
+    let student;
+    // Signup verification
+    if (!tempData.isLogin) {
+      const { name, email, course } = tempData;
+      student = new Student({ name, mobile, email, course });
+      await student.save();
+    } else {
+      // Login verification
+      student = await Student.findOne({ mobile });
+    }
+
+    // Remove OTP from temporary store
+    delete otpStore[mobile];
 
     // Generate JWT
     const token = jwt.sign(
@@ -128,7 +131,7 @@ export const verifyOtp = async (req, res) => {
 
     res.json({
       success: true,
-      message: "✅ OTP Verified! Student logged in.",
+      message: tempData.isLogin ? "✅ OTP Verified! Logged in successfully." : "✅ OTP Verified! Student registered successfully.",
       student: {
         id: student._id,
         name: student.name,
@@ -143,9 +146,8 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-//
 // ============================
-// 🚀 CHECK AUTH
+// 🚀 CHECK AUTH (login session)
 // ============================
 export const checkAuth = async (req, res) => {
   try {
@@ -155,12 +157,11 @@ export const checkAuth = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     res.json({ student: decoded });
   } catch (err) {
-    console.error(err);
+    console.error("CheckAuth Error:", err);
     res.status(401).json({ student: null });
   }
 };
 
-//
 // ============================
 // 🚀 LOGOUT
 // ============================
