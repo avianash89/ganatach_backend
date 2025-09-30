@@ -7,8 +7,61 @@ dotenv.config();
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
 
-// ✅ Send OTP (only for registered trainers)
-export const sendOtp = async (req, res) => {
+//
+// ============================
+// 🚀 SIGNUP + SEND OTP
+// ============================
+export const signupAndSendOtp = async (req, res) => {
+  try {
+    const { trainerName, phoneNumber, email, technology, experience } = req.body;
+
+    // Check if trainer already exists
+    let existingTrainer = await Trainer.findOne({ phoneNumber });
+    if (existingTrainer) {
+      return res.status(400).json({
+        success: false,
+        message: "⚠️ Trainer already exists. Please login!",
+      });
+    }
+
+    // Create new trainer
+    const trainer = new Trainer({
+      trainerName,
+      phoneNumber,
+      email,
+      technology,
+      experience,
+    });
+
+    // Generate OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+    trainer.otp = otp;
+    trainer.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+    await trainer.save();
+
+    // Send OTP via SMS
+    await client.messages.create({
+      body: `Your OTP for Trainer Signup is: ${otp}`,
+      from: process.env.TWILIO_PHONE,
+      to: `+91${phoneNumber}`,
+    });
+
+    res.json({
+      success: true,
+      message: "Trainer registered successfully! OTP sent.",
+    });
+  } catch (error) {
+    console.error("Signup Error:", error);
+    res.status(500).json({ success: false, message: "Error sending OTP" });
+  }
+};
+
+//
+// ============================
+// 🚀 LOGIN + SEND OTP
+// ============================
+export const loginAndSendOtp = async (req, res) => {
   try {
     const { phoneNumber } = req.body;
 
@@ -21,11 +74,11 @@ export const sendOtp = async (req, res) => {
       });
     }
 
-    // Generate 4-digit OTP
+    // Generate OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
     trainer.otp = otp;
-    trainer.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+    trainer.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
     await trainer.save();
 
     // Send OTP via SMS
@@ -37,18 +90,20 @@ export const sendOtp = async (req, res) => {
 
     res.json({ success: true, message: "OTP sent successfully!" });
   } catch (error) {
-    console.error(error);
+    console.error("Login Error:", error);
     res.status(500).json({ success: false, message: "Error sending OTP" });
   }
 };
 
-// ✅ Verify OTP and issue JWT
+//
+// ============================
+// 🚀 VERIFY OTP (for both signup/login)
+// ============================
 export const verifyOtp = async (req, res) => {
   try {
     const { phoneNumber, enteredOtp } = req.body;
 
     const trainer = await Trainer.findOne({ phoneNumber });
-
     if (!trainer) {
       return res.status(404).json({ success: false, message: "Trainer not found. Please sign up!" });
     }
@@ -82,7 +137,7 @@ export const verifyOtp = async (req, res) => {
 
     res.json({
       success: true,
-      message: "OTP Verified! Trainer logged in.",
+      message: "✅ OTP Verified! Trainer logged in.",
       trainer: {
         id: trainer._id,
         name: trainer.trainerName,
@@ -92,12 +147,15 @@ export const verifyOtp = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Verify OTP Error:", error);
     res.status(500).json({ success: false, message: "Error verifying OTP" });
   }
 };
 
-// ✅ Check Auth
+//
+// ============================
+// 🚀 CHECK AUTH
+// ============================
 export const checkAuth = async (req, res) => {
   try {
     const token = req.cookies?.trainer_token;
@@ -111,7 +169,10 @@ export const checkAuth = async (req, res) => {
   }
 };
 
-// ✅ Logout
+//
+// ============================
+// 🚀 LOGOUT
+// ============================
 export const logout = (req, res) => {
   res.clearCookie("trainer_token", {
     httpOnly: true,
@@ -121,7 +182,10 @@ export const logout = (req, res) => {
   res.json({ success: true, message: "Logged out successfully" });
 };
 
-// ✅ Get all trainers
+//
+// ============================
+// 🚀 GET ALL TRAINERS
+// ============================
 export const getAllTrainers = async (req, res) => {
   try {
     const trainers = await Trainer.find();
@@ -132,7 +196,10 @@ export const getAllTrainers = async (req, res) => {
   }
 };
 
-// ✅ Delete trainer
+//
+// ============================
+// 🚀 DELETE TRAINER
+// ============================
 export const deleteTrainer = async (req, res) => {
   try {
     const { id } = req.params;
@@ -142,7 +209,7 @@ export const deleteTrainer = async (req, res) => {
     }
     res.json({ success: true, message: "Trainer deleted successfully!" });
   } catch (error) {
-    console.error(error);
+    console.error("Error deleting trainer:", error);
     res.status(500).json({ success: false, message: "Error deleting trainer" });
   }
 };

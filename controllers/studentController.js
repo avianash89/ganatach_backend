@@ -7,47 +7,99 @@ dotenv.config();
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
 
-// ✅ Send OTP only if student exists
-export const sendOtp = async (req, res) => {
+//
+// ============================
+// 🚀 SIGNUP + SEND OTP
+// ============================
+export const signupAndSendOtp = async (req, res) => {
   try {
-    const { mobile } = req.body;
+    const { name, mobile, email, course } = req.body;
 
-    // ✅ Check if student exists
-    const student = await Student.findOne({ mobile });
-    if (!student) {
-      return res.status(404).json({
+    // ✅ Check if student already exists
+    const existingStudent = await Student.findOne({ mobile });
+    if (existingStudent) {
+      // Student exists → just return a message, no OTP
+      return res.status(200).json({
         success: false,
-        message: "Student not found. Please sign up first!",
+        message: "⚠️ Student already exists. Please login!",
+        alreadyExists: true, // optional flag for frontend
       });
     }
 
-    // ✅ Generate 4-digit OTP
+    // ✅ Create new student
+    const student = new Student({ name, mobile, email, course });
+
+    // ✅ Generate OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     student.otp = otp;
-    student.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+    student.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
     await student.save();
 
     // ✅ Send OTP via Twilio
     await client.messages.create({
-      body: `Your OTP for login is: ${otp}`,
+      body: `Your OTP for Student Signup is: ${otp}`,
+      from: process.env.TWILIO_PHONE,
+      to: `+91${mobile}`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Student registered successfully! OTP sent.",
+      alreadyExists: false,
+    });
+  } catch (error) {
+    console.error("Signup Error:", error);
+    res.status(500).json({ success: false, message: "Error sending OTP" });
+  }
+};
+
+
+//
+// ============================
+// 🚀 LOGIN + SEND OTP
+// ============================
+export const loginAndSendOtp = async (req, res) => {
+  try {
+    const { mobile } = req.body;
+
+    // Check if student exists
+    let student = await Student.findOne({ mobile });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found. Please sign up!",
+      });
+    }
+
+    // Generate OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    student.otp = otp;
+    student.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+    await student.save();
+
+    // Send OTP via SMS
+    await client.messages.create({
+      body: `Your OTP for Student Login is: ${otp}`,
       from: process.env.TWILIO_PHONE,
       to: `+91${mobile}`,
     });
 
     res.json({ success: true, message: "OTP sent successfully!" });
   } catch (error) {
-    console.error(error);
+    console.error("Login Error:", error);
     res.status(500).json({ success: false, message: "Error sending OTP" });
   }
 };
 
-// ✅ Verify OTP (with JWT and persistent cookie)
+//
+// ============================
+// 🚀 VERIFY OTP (for both signup/login)
+// ============================
 export const verifyOtp = async (req, res) => {
   try {
     const { mobile, enteredOtp } = req.body;
 
     const student = await Student.findOne({ mobile });
-
     if (!student) {
       return res.status(404).json({ success: false, message: "Student not found. Please sign up!" });
     }
@@ -56,43 +108,45 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }
 
-    // Clear OTP after verification
     student.otp = null;
     student.otpExpires = null;
     await student.save();
 
-    // ✅ JWT Token create (persistent for 7 days)
+    // Generate JWT
     const token = jwt.sign(
       { id: student._id, mobile: student.mobile, name: student.name, course: student.course },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // ✅ Set HTTP-only cookie
     res.cookie("student_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
       success: true,
-      message: "OTP Verified! Login Successful.",
+      message: "✅ OTP Verified! Student logged in.",
       student: {
         id: student._id,
         name: student.name,
         mobile: student.mobile,
+        email: student.email,
         course: student.course,
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Verify OTP Error:", error);
     res.status(500).json({ success: false, message: "Error verifying OTP" });
   }
 };
 
-// ✅ Check Auth (persistent login)
+//
+// ============================
+// 🚀 CHECK AUTH
+// ============================
 export const checkAuth = async (req, res) => {
   try {
     const token = req.cookies?.student_token;
@@ -106,7 +160,10 @@ export const checkAuth = async (req, res) => {
   }
 };
 
-// ✅ Logout
+//
+// ============================
+// 🚀 LOGOUT
+// ============================
 export const logout = (req, res) => {
   res.clearCookie("student_token", {
     httpOnly: true,
