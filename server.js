@@ -5,7 +5,7 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 
-import authRoutes from "./routes/authRoutes.js";
+// import authRoutes from "./routes/authRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import trainerRoutes from "./routes/trainerRoutes.js";
 
@@ -23,7 +23,7 @@ app.use(bodyParser.json());
 app.use(cookieParser());            // ✅ parse cookies
 
 // Routes
-app.use("/api/auth", authRoutes);
+// app.use("/api/auth", authRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/trainers", trainerRoutes);
 

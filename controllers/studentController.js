@@ -7,39 +7,29 @@ dotenv.config();
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
 
-// ✅ Send OTP
+// ✅ Send OTP only if student exists
 export const sendOtp = async (req, res) => {
   try {
-    const { name, mobile, course, email, message } = req.body;
+    const { mobile } = req.body;
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
-    let student = await Student.findOne({ mobile });
-
-    if (student) {
-      student.otp = otp;
-      student.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
-      student.name = name;
-      student.course = course;
-      student.email = email;
-      student.message = message;
-    } else {
-      student = new Student({
-        name,
-        mobile,
-        course,
-        email,
-        message,
-        otp,
-        otpExpires: new Date(Date.now() + 5 * 60 * 1000),
+    // ✅ Check if student exists
+    const student = await Student.findOne({ mobile });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found. Please sign up first!",
       });
     }
 
+    // ✅ Generate 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    student.otp = otp;
+    student.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
     await student.save();
 
-    // Send OTP via Twilio
+    // ✅ Send OTP via Twilio
     await client.messages.create({
-      body: `Your OTP for Student Enquiry is: ${otp}`,
+      body: `Your OTP for login is: ${otp}`,
       from: process.env.TWILIO_PHONE,
       to: `+91${mobile}`,
     });
@@ -59,7 +49,7 @@ export const verifyOtp = async (req, res) => {
     const student = await Student.findOne({ mobile });
 
     if (!student) {
-      return res.status(404).json({ success: false, message: "Student not found" });
+      return res.status(404).json({ success: false, message: "Student not found. Please sign up!" });
     }
 
     if (student.otp !== enteredOtp || student.otpExpires < new Date()) {
@@ -75,20 +65,20 @@ export const verifyOtp = async (req, res) => {
     const token = jwt.sign(
       { id: student._id, mobile: student.mobile, name: student.name, course: student.course },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" } // persistent token for 7 days
+      { expiresIn: "7d" }
     );
 
     // ✅ Set HTTP-only cookie
     res.cookie("student_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // use HTTPS in prod
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
     res.json({
       success: true,
-      message: "OTP Verified! Student Enquiry Submitted.",
+      message: "OTP Verified! Login Successful.",
       student: {
         id: student._id,
         name: student.name,

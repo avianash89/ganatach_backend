@@ -7,35 +7,25 @@ dotenv.config();
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
 
-// ✅ Send OTP
+// ✅ Send OTP (only for registered trainers)
 export const sendOtp = async (req, res) => {
   try {
-    const { trainerName, phoneNumber, email, technology, experience } = req.body;
+    const { phoneNumber } = req.body;
+
+    // Check if trainer exists
+    let trainer = await Trainer.findOne({ phoneNumber });
+    if (!trainer) {
+      return res.status(404).json({
+        success: false,
+        message: "Trainer not found. Please sign up!",
+      });
+    }
 
     // Generate 4-digit OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    let trainer = await Trainer.findOne({ phoneNumber });
-
-    if (trainer) {
-      trainer.otp = otp;
-      trainer.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
-      trainer.trainerName = trainerName;
-      trainer.email = email;
-      trainer.technology = technology;
-      trainer.experience = experience;
-    } else {
-      trainer = new Trainer({
-        trainerName,
-        phoneNumber,
-        email,
-        technology,
-        experience,
-        otp,
-        otpExpires: new Date(Date.now() + 5 * 60 * 1000),
-      });
-    }
-
+    trainer.otp = otp;
+    trainer.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
     await trainer.save();
 
     // Send OTP via SMS
@@ -52,7 +42,7 @@ export const sendOtp = async (req, res) => {
   }
 };
 
-// ✅ Verify OTP and issue JWT for persistent login
+// ✅ Verify OTP and issue JWT
 export const verifyOtp = async (req, res) => {
   try {
     const { phoneNumber, enteredOtp } = req.body;
@@ -60,19 +50,18 @@ export const verifyOtp = async (req, res) => {
     const trainer = await Trainer.findOne({ phoneNumber });
 
     if (!trainer) {
-      return res.status(404).json({ success: false, message: "Trainer not found" });
+      return res.status(404).json({ success: false, message: "Trainer not found. Please sign up!" });
     }
 
     if (trainer.otp !== enteredOtp || trainer.otpExpires < new Date()) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }
 
-    // Clear OTP after successful verification
     trainer.otp = null;
     trainer.otpExpires = null;
     await trainer.save();
 
-    // ✅ Generate JWT token (7 days)
+    // Generate JWT
     const token = jwt.sign(
       {
         id: trainer._id,
@@ -84,12 +73,11 @@ export const verifyOtp = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // ✅ Set HTTP-only cookie
     res.cookie("trainer_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
@@ -109,7 +97,7 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-// ✅ Check Auth (persistent login)
+// ✅ Check Auth
 export const checkAuth = async (req, res) => {
   try {
     const token = req.cookies?.trainer_token;
@@ -144,7 +132,7 @@ export const getAllTrainers = async (req, res) => {
   }
 };
 
-// ✅ Delete trainer by ID
+// ✅ Delete trainer
 export const deleteTrainer = async (req, res) => {
   try {
     const { id } = req.params;
