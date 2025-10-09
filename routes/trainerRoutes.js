@@ -6,30 +6,24 @@ import {
   checkAuth, 
   logout, 
   getAllTrainers, 
-  deleteTrainer 
+  getTrainerById,
+  updateTrainer,
+  deleteTrainer
 } from "../controllers/trainerController.js";
 
 const router = express.Router();
 
-// POST /api/trainers/signup-otp
+// OTP & Auth Routes
 router.post("/signup-otp", signupAndSendOtp);
-
-// POST /api/trainers/login-otp
 router.post("/login-otp", loginAndSendOtp);
-
-// POST /api/trainers/verify-otp
 router.post("/verify-otp", verifyOtp);
-
-// GET /api/trainers/check-auth
 router.get("/check-auth", checkAuth);
-
-// POST /api/trainers/logout
 router.post("/logout", logout);
 
-// GET /api/trainers
-router.get("/", getAllTrainers);
-
-// DELETE /api/trainers/:id
-router.delete("/:id", deleteTrainer);
+// Admin / CRUD Routes
+router.get("/", getAllTrainers);            // Get all trainers
+router.get("/:id", getTrainerById);         // Get single trainer
+router.put("/:id", updateTrainer);          // Update trainer
+router.delete("/:id", deleteTrainer);       // Delete trainer
 
 export default router;

@@ -16,7 +16,6 @@ export const signupAndSendOtp = async (req, res) => {
   try {
     const { trainerName, phoneNumber, email, technology, experience } = req.body;
 
-    // Check if trainer already exists
     const existingTrainer = await Trainer.findOne({ phoneNumber });
     if (existingTrainer) {
       return res.status(200).json({
@@ -26,14 +25,11 @@ export const signupAndSendOtp = async (req, res) => {
       });
     }
 
-    // Generate OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    const expires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+    const expires = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Save OTP temporarily
     otpStore[phoneNumber] = { trainerName, phoneNumber, email, technology, experience, otp, expires };
 
-    // Send OTP via Twilio
     await client.messages.create({
       body: `Your OTP for Trainer Signup is: ${otp}`,
       from: process.env.TWILIO_PHONE,
@@ -57,13 +53,12 @@ export const signupAndSendOtp = async (req, res) => {
 export const loginAndSendOtp = async (req, res) => {
   try {
     const { phoneNumber } = req.body;
-
     const trainer = await Trainer.findOne({ phoneNumber });
+
     if (!trainer) {
       return res.status(404).json({ success: false, message: "Trainer not found. Please sign up!" });
     }
 
-    // Generate OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const expires = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -99,20 +94,16 @@ export const verifyOtp = async (req, res) => {
     }
 
     let trainer;
-    // Signup verification
     if (!tempData.isLogin) {
       const { trainerName, email, technology, experience } = tempData;
       trainer = new Trainer({ trainerName, phoneNumber, email, technology, experience });
       await trainer.save();
     } else {
-      // Login verification
       trainer = await Trainer.findOne({ phoneNumber });
     }
 
-    // Remove OTP from temporary store
     delete otpStore[phoneNumber];
 
-    // Generate JWT
     const token = jwt.sign(
       { id: trainer._id, phoneNumber: trainer.phoneNumber, trainerName: trainer.trainerName, technology: trainer.technology },
       process.env.JWT_SECRET,
@@ -145,7 +136,7 @@ export const verifyOtp = async (req, res) => {
 };
 
 // ============================
-// 🚀 CHECK AUTH (login session)
+// 🚀 CHECK AUTH
 // ============================
 export const checkAuth = async (req, res) => {
   try {
@@ -186,15 +177,40 @@ export const getAllTrainers = async (req, res) => {
 };
 
 // ============================
+// 🚀 GET SINGLE TRAINER
+// ============================
+export const getTrainerById = async (req, res) => {
+  try {
+    const trainer = await Trainer.findById(req.params.id);
+    if (!trainer) return res.status(404).json({ success: false, message: "Trainer not found" });
+    res.json(trainer);
+  } catch (error) {
+    console.error("Error fetching trainer:", error);
+    res.status(500).json({ success: false, message: "Error fetching trainer" });
+  }
+};
+
+// ============================
+// 🚀 UPDATE TRAINER
+// ============================
+export const updateTrainer = async (req, res) => {
+  try {
+    const updatedTrainer = await Trainer.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updatedTrainer) return res.status(404).json({ success: false, message: "Trainer not found" });
+    res.json({ success: true, message: "Trainer updated successfully", trainer: updatedTrainer });
+  } catch (error) {
+    console.error("Error updating trainer:", error);
+    res.status(500).json({ success: false, message: "Error updating trainer" });
+  }
+};
+
+// ============================
 // 🚀 DELETE TRAINER
 // ============================
 export const deleteTrainer = async (req, res) => {
   try {
-    const { id } = req.params;
-    const trainer = await Trainer.findByIdAndDelete(id);
-    if (!trainer) {
-      return res.status(404).json({ success: false, message: "Trainer not found" });
-    }
+    const trainer = await Trainer.findByIdAndDelete(req.params.id);
+    if (!trainer) return res.status(404).json({ success: false, message: "Trainer not found" });
     res.json({ success: true, message: "Trainer deleted successfully!" });
   } catch (error) {
     console.error("Error deleting trainer:", error);

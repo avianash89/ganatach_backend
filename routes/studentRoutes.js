@@ -1,22 +1,33 @@
 import express from "express";
-import { signupAndSendOtp, loginAndSendOtp, verifyOtp, checkAuth, logout } from "../controllers/studentController.js";
+import {
+  signupAndSendOtp,
+  loginAndSendOtp,
+  verifyOtp,
+  checkAuth,
+  logout,
+  getAllStudents,
+  getStudentById,
+  updateStudent,
+  deleteStudent,
+} from "../controllers/studentController.js";
 
 const router = express.Router();
 
-// POST /api/students/signup-otp
+// ============================
+// OTP & Auth routes
+// ============================
 router.post("/signup-otp", signupAndSendOtp);
-
-// POST /api/students/login-otp
 router.post("/login-otp", loginAndSendOtp);
-
-// POST /api/students/verify-otp
 router.post("/verify-otp", verifyOtp);
-
-// GET /api/students/check-auth
 router.get("/check-auth", checkAuth);
-
-// POST /api/students/logout
 router.post("/logout", logout);
 
-export default router;
+// ============================
+// Admin CRUD routes for students
+// ============================
+router.get("/", getAllStudents);          // GET all students
+router.get("/:id", getStudentById);       // GET a single student
+router.put("/:id", updateStudent);        // UPDATE student
+router.delete("/:id", deleteStudent);     // DELETE student
 
+export default router;

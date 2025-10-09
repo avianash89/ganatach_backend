@@ -163,6 +163,72 @@ export const checkAuth = async (req, res) => {
 };
 
 // ============================
+// 🚀 GET ALL STUDENTS
+// ============================
+export const getAllStudents = async (req, res) => {
+  try {
+    const students = await Student.find();
+    res.status(200).json(students);
+  } catch (err) {
+    console.error("Error fetching students:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch students" });
+  }
+};
+
+// ============================
+// 🚀 GET SINGLE STUDENT
+// ============================
+export const getStudentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const student = await Student.findById(id);
+    if (!student) return res.status(404).json({ success: false, message: "Student not found" });
+    res.status(200).json(student);
+  } catch (err) {
+    console.error("Error fetching student:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch student" });
+  }
+};
+
+// ============================
+// 🚀 UPDATE STUDENT
+// ============================
+export const updateStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const updatedStudent = await Student.findByIdAndUpdate(id, updates, { new: true });
+    if (!updatedStudent) return res.status(404).json({ success: false, message: "Student not found" });
+
+    res.status(200).json({
+      success: true,
+      message: "Student updated successfully",
+      student: updatedStudent,
+    });
+  } catch (err) {
+    console.error("Error updating student:", err);
+    res.status(500).json({ success: false, message: "Failed to update student" });
+  }
+};
+
+// ============================
+// 🚀 DELETE STUDENT
+// ============================
+export const deleteStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedStudent = await Student.findByIdAndDelete(id);
+    if (!deletedStudent) return res.status(404).json({ success: false, message: "Student not found" });
+
+    res.status(200).json({ success: true, message: "Student deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting student:", err);
+    res.status(500).json({ success: false, message: "Failed to delete student" });
+  }
+};
+
+// ============================
 // 🚀 LOGOUT
 // ============================
 export const logout = (req, res) => {
