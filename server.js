@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser";
 import studentRoutes from "./routes/studentRoutes.js";
 import trainerRoutes from "./routes/trainerRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import courseRoutes from "./routes/courseRoutes.js";
 
 dotenv.config();
 
@@ -22,11 +23,13 @@ app.use(cors({
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(cookieParser());            // ✅ parse cookies
+app.use("/uploads", express.static("uploads"));
 
 // Routes
 app.use("/api/admin", adminRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/trainers", trainerRoutes);
+app.use("/api/courses", courseRoutes);
 
 
 // DB connection
