@@ -14,12 +14,24 @@ import courseRoutes from "./routes/courseRoutes.js";
 dotenv.config();
 
 const app = express();
+const allowedOrigins = [
+  "http://localhost:5173",      // local frontend
+  "https://ganatach2-0.vercel.app", // deployed frontend
+];
 
 // ✅ Middlewares
-app.use(cors({
-  origin: "http://localhost:5173", // frontend URL
-  credentials: true,               // allow cookies
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true, // allow cookies
+  })
+);
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(cookieParser());            // ✅ parse cookies
