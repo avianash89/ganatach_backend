@@ -5,49 +5,45 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 
-// import authRoutes from "./routes/authRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import trainerRoutes from "./routes/trainerRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 
 dotenv.config();
-
 const app = express();
-const allowedOrigins = ["https://ganatach2-0.vercel.app"];   // deployed frontend URL in array
 
-// ✅ Middlewares
+// ✅ allow both localhost and deployed frontend
+const allowedOrigins = [
+  "https://ganatach2-0.vercel.app",
+  "http://localhost:5173",
+];
+
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true, // allow cookies
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
 app.use(express.json());
 app.use(bodyParser.json());
-app.use(cookieParser());            // ✅ parse cookies
+app.use(cookieParser());
 app.use("/uploads", express.static("uploads"));
 
-// Routes
+// ✅ Routes
 app.use("/api/admin", adminRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/trainers", trainerRoutes);
 app.use("/api/courses", courseRoutes);
 
-
-// DB connection
+// ✅ DB connection
 mongoose
   .connect(process.env.MONGO_URL)
   .then(() => console.log("DB Connection Successful"))
-  .catch((err) => console.log(err.message));
+  .catch((err) => console.log("MongoDB Error:", err.message));
 
-// Server
-const server = app.listen(process.env.PORT, () =>
-  console.log(`Server started on port ${process.env.PORT}`)
-);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
