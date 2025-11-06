@@ -14,10 +14,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 dotenv.config();
 
 const app = express();
-const allowedOrigins = [
-  "http://localhost:5173",      // local frontend
-  "https://ganatach2-0.vercel.app", // deployed frontend
-];
+const allowedOrigins = ["https://ganatach2-0.vercel.app"];   // deployed frontend URL in array
 
 // ✅ Middlewares
 app.use(
